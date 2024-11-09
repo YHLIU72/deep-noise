@@ -26,7 +26,7 @@ def parse_args():
     parser.add_argument('--data_dir', dest='data_dir', help='Directory path for data.',
           default='../data', type=str)
     parser.add_argument('--filename', dest='filename', help='data filename.',
-          default='data_after.xlsx', type=str)
+          default='data_final_train.xlsx', type=str)
     parser.add_argument('--output_string', dest='output_string', help='String appended to output snapshots.', default = '', type=str)
     parser.add_argument('--dataset', dest='dataset', help='Dataset type.', default='NoiseData', type=str)
     parser.add_argument('--log_dir', dest='log_dir', type = str, default = 'logs/train')
@@ -37,8 +37,8 @@ if __name__ == '__main__':
     args = parse_args()
     num_epochs = args.num_epochs
     batch_size = args.batch_size
-    transformations = Normalizer(mean=[354.16, 32.17, 2649.37], std=[187.5, 647.17, 2045.62])
-
+    transformations = Normalizer(mean=[354.16, 32.17, 2649.37], std=[187.5, 647.17, 2045.62])#哪里来的数据？
+#数据加载器
     if args.dataset == 'NoiseData':
         dataset = NoiseData(dir=args.data_dir, filename=args.filename, transform=transformations)
 
@@ -46,27 +46,34 @@ if __name__ == '__main__':
                             batch_size=batch_size,
                             shuffle=True,
                             num_workers=2)
-    
-    model = NonLinear(nc=400)
-    criterion = nn.MSELoss()
+#建立模型  
+    model = NonLinear(nc=400, out_nc=25)
+#损失函数
+    # criterion = nn.MSELoss()
+    criterion = nn.CrossEntropyLoss()
+#优化器，随机梯度
     optimizer = optim.SGD(model.parameters(), lr=args.lr)
     milestones = args.lr_decay
+#学习率调度器
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=milestones, gamma=0.1)
     
     # tensorboard visualization
-    Loss_writer = SummaryWriter(log_dir = args.log_dir)
+    Loss_writer = SummaryWriter(log_dir = args.log_dir)#日志记录
 
     for epoch in range(args.num_epochs):
-        for i, (inputs, outputs) in tqdm(enumerate(train_loader)):
+        for i, (inputs, outputs, binned_outputs) in tqdm(enumerate(train_loader)):
             inputs = Variable(inputs)
             labels = Variable(outputs)
-            optimizer.zero_grad()
+            binned_outputs = Variable(binned_outputs)
+            optimizer.zero_grad()#梯度清零
             preds = model(inputs)
 
-            # calculate loss
-            loss = criterion(preds, labels)
-            loss.backward()
-            optimizer.step()
+            # calculate loss损失函数
+            # print(preds, binned_outputs)
+            # exit()
+            loss = criterion(preds, binned_outputs)
+            loss.backward()#执行反向传播的关键方法。这个调用会计算损失函数相对于模型参数的梯度
+            optimizer.step()#根据梯度更新参数
 
             Loss_writer.add_scalar('train_loss', loss, epoch)
             if (i+1) % 100 == 0:
@@ -75,9 +82,9 @@ if __name__ == '__main__':
             # Save models at numbered epochs.
 
         scheduler.step()
-        if epoch % 100 == 0 and epoch < num_epochs:
+        if (epoch+1) % 100 == 0 and (epoch+1) < num_epochs:
             print('Taking snapshot...')
             if not os.path.exists('snapshots/'):
                 os.makedirs('snapshots/')
             torch.save(model.state_dict(),
-            'snapshots/' + args.output_string + '_epoch_'+ str(epoch) + '.pth')
+            'snapshots/' + args.output_string + '_epoch_'+ str(epoch+1) + '.pth')

@@ -16,7 +16,7 @@ def parse_args():
     parser.add_argument('--data_dir', dest='data_dir', help='Directory path for data.',
           default='../data', type=str)
     parser.add_argument('--filename', dest='filename', help='data filename.',
-          default='data_after.xlsx', type=str)
+          default='data_final_test.xlsx', type=str)
     parser.add_argument('--dataset', dest='dataset', help='Dataset type.', default='NoiseData', type=str)
     parser.add_argument('--snapshot', dest='snapshot', help='Name of model snapshot.',
           default='', type=str)
@@ -34,7 +34,7 @@ if __name__ == '__main__':
 
     print ('Loading snapshot.')
     # Load snapshot
-    model = NonLinear(nc=400)
+    model = NonLinear(nc=400, out_nc=25)
     saved_state_dict = torch.load(snapshot_path, weights_only=True)
     model.load_state_dict(saved_state_dict)
 
@@ -45,15 +45,30 @@ if __name__ == '__main__':
     
     criterion = nn.MSELoss()
     test_error = .0
+    total_correct=0
     total = 0
-    for i, (inputs, outputs) in tqdm(enumerate(test_loader)):
+    for i, (inputs, outputs, binned_outputs) in tqdm(enumerate(test_loader)):
         total += outputs.size(0)
         inputs = Variable(inputs)
         labels = Variable(outputs)
+        binned_outputs = Variable(binned_outputs)
         preds = model(inputs)
+      #   print(inputs, preds, labels, binned_outputs)
+        
+      #   _, cls = torch.max(preds, 1)
+      #   print(cls)
+      #   exit()
+      #   test_loss = criterion(preds, labels)
+        #计算准确率
+        _, predicted = torch.max(preds.data, 1)
+        correct1 = (predicted == binned_outputs).sum().item()
+        correct2 = (predicted==binned_outputs-1).sum().item()
+        correct3 = (predicted==binned_outputs+1).sum().item()
+        total_correct=total_correct+correct1+correct2+correct3
 
-        test_loss = criterion(preds, labels)
-        test_error += torch.sum(test_loss)
+    accuracy = total_correct / len(dataset)
+      #   test_error += torch.sum(test_loss)
         # print(preds, labels, test_loss, torch.sum(test_loss))
     
-    print('Test error on the ' + str(total) +' test samples. MSE: %.4f' % (test_error / total))
+#     print('Test error on the ' + str(total) +' test samples. MSE: %.4f' % (test_error / total))
+    print('test accuracy : '+str(accuracy))

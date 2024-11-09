@@ -4,7 +4,7 @@ from torch.utils.data.dataset import Dataset
 from sklearn.preprocessing import LabelEncoder
 import torch
 import numpy as np
-
+#数据集加载器
 class NoiseData(Dataset):
     def __init__(self, dir='../data', filename='data_after.xlsx', use_type = None, transform = None):
         self.dir = dir
@@ -41,9 +41,12 @@ class NoiseData(Dataset):
             output = [self.dataFrame[keys[len(keys)-1]][idx]]
         if self.transform is not None:
             input = self.transform(input)
+        # Bin values
+        bins = np.array(range(20, 70, 2))
+        binned_output = torch.LongTensor(np.digitize(output, bins) - 1)
         input = torch.tensor(input).to(torch.float32)
         output = torch.tensor(output).to(torch.float32)
-        return input, output
+        return input, output, binned_output.squeeze()
     
 class NoiseDataFiltered(Dataset):
     def __init__(self):
