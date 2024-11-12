@@ -9,6 +9,7 @@ from data.noisedata import NoiseData
 from model.nonlinear import NonLinear
 from utils.transform import Normalizer
 from torch.autograd import Variable
+from loss.MyLoss import FocalLoss
 from torch.utils.tensorboard import SummaryWriter
 
 from tqdm import tqdm
@@ -47,10 +48,12 @@ if __name__ == '__main__':
                             shuffle=True,
                             num_workers=2)
 #建立模型  
-    model = NonLinear(nc=400, out_nc=25)
+    model = NonLinear(nc=400, out_nc=50)
 #损失函数
-    # criterion = nn.MSELoss()
+    reg_criterion = nn.MSELoss()
     criterion = nn.CrossEntropyLoss()
+    criterion1=FocalLoss(alpha=0.25, gamma=2.0)
+
 #优化器，随机梯度
     optimizer = optim.SGD(model.parameters(), lr=args.lr)
     milestones = args.lr_decay
@@ -59,6 +62,11 @@ if __name__ == '__main__':
     
     # tensorboard visualization
     Loss_writer = SummaryWriter(log_dir = args.log_dir)#日志记录
+    softmax = nn.Softmax(dim=1)
+    idx_tensor = [idx for idx in range(50)]
+    
+    idx_tensor = Variable(torch.FloatTensor(idx_tensor))
+    total_correct=0
 
     for epoch in range(args.num_epochs):
         for i, (inputs, outputs, binned_outputs) in tqdm(enumerate(train_loader)):
@@ -67,18 +75,22 @@ if __name__ == '__main__':
             binned_outputs = Variable(binned_outputs)
             optimizer.zero_grad()#梯度清零
             preds = model(inputs)
+            #MSE loss
+            _predicted = softmax(preds)
+            predicted = torch.sum(_predicted * idx_tensor, 1)+20
+            mse_loss= reg_criterion(predicted, outputs)
 
-            # calculate loss损失函数
-            # print(preds, binned_outputs)
-            # exit()
+            #Cross entropy loss
             loss = criterion(preds, binned_outputs)
-            loss.backward()#执行反向传播的关键方法。这个调用会计算损失函数相对于模型参数的梯度
+            total_loss=2*loss+mse_loss
+
+            total_loss.backward()#执行反向传播的关键方法。这个调用会计算损失函数相对于模型参数的梯度
             optimizer.step()#根据梯度更新参数
 
-            Loss_writer.add_scalar('train_loss', loss, epoch)
+            Loss_writer.add_scalar('train_loss', total_loss, epoch)
             if (i+1) % 100 == 0:
                 print ('Epoch [%d/%d], Iter [%d/%d] Losses: %.4f'
-                       %(epoch+1, num_epochs, i+1, len(dataset)//batch_size, loss))
+                       %(epoch+1, num_epochs, i+1, len(dataset)//batch_size, total_loss))
             # Save models at numbered epochs.
 
         scheduler.step()

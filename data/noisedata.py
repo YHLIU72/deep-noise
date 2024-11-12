@@ -42,11 +42,11 @@ class NoiseData(Dataset):
         if self.transform is not None:
             input = self.transform(input)
         # Bin values
-        bins = np.array(range(20, 70, 2))
+        bins = np.array(range(20, 70, 1))
         binned_output = torch.LongTensor(np.digitize(output, bins) - 1)
         input = torch.tensor(input).to(torch.float32)
         output = torch.tensor(output).to(torch.float32)
-        return input, output, binned_output.squeeze()
+        return input, output.squeeze(), binned_output.squeeze()
     
 class NoiseDataFiltered(Dataset):
     def __init__(self):
